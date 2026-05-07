@@ -1,0 +1,4 @@
+UPDATE employee
+SET Department = 'HR'
+WHERE Employee_id = 2;
+select * from employee;
