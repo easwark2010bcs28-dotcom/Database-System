@@ -1,0 +1,42 @@
+SET SERVEROUTPUT ON;
+DECLARE
+    CURSOR emp_cursor IS
+        SELECT employee_id, employee_name, salary, department_id
+        FROM employee
+        WHERE address_city = 'sivakasi'
+        AND salary > (SELECT AVG(salary) FROM employee);
+
+    v_id employee.employee_id%TYPE;
+    v_name employee.employee_name%TYPE;
+    v_salary employee.salary%TYPE;
+    v_dept employee.department_id%TYPE;
+
+    emp_count NUMBER := 0;
+
+BEGIN
+    OPEN emp_cursor;
+
+    LOOP
+        FETCH emp_cursor INTO v_id, v_name, v_salary, v_dept;
+        EXIT WHEN emp_cursor%NOTFOUND;
+
+        emp_count := emp_count + 1;
+
+        DBMS_OUTPUT.PUT_LINE(
+            'Employee ID: ' || v_id ||
+            ' Name: ' || v_name ||
+            ' Salary: ' || v_salary
+        );
+    END LOOP;
+
+    DBMS_OUTPUT.PUT_LINE('Total Employees: ' || emp_count);
+
+    CLOSE emp_cursor;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        DBMS_OUTPUT.PUT_LINE('No employee found.');
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error occurred: ' || SQLERRM);
+END;
+/
