@@ -1,0 +1,6 @@
+CREATE TABLE employee
+(
+    Employee_id int ,
+    Employee_Name text, 
+    Department text 
+);
