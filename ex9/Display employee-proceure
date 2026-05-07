@@ -1,0 +1,15 @@
+CREATE OR REPLACE PROCEDURE display_all_emp
+IS
+BEGIN
+    FOR rec IN (
+        SELECT emp_id, emp_name, role, hire_date, salary
+        FROM employee_role
+    )
+    LOOP
+        DBMS_OUTPUT.PUT_LINE(
+            rec.emp_id || ' ' || rec.emp_name || ' ' ||
+            rec.role || ' ' || rec.hire_date || ' ' || rec.salary
+        );
+    END LOOP;
+END;
+/
