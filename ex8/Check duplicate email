@@ -1,0 +1,15 @@
+CREATE OR REPLACE TRIGGER check_duplicate_email
+BEFORE INSERT ON employee
+FOR EACH ROW
+DECLARE
+    v_count NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO v_count
+    FROM employee
+    WHERE email_id = :NEW.email_id;
+
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20005,'Duplicate email');
+    END IF;
+END;
+/
