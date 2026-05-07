@@ -1,0 +1,1411 @@
+package dbms;
+
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.sql.*;
+import java.util.HashMap;
+
+public class OnlineShoppingSystem {
+
+    static Connection con;
+    static int currentCustomerId = -1;
+    static HashMap<Integer, Integer> cart = new HashMap<>();
+
+    public static void main(String[] args) {
+        connectDB();
+        SwingUtilities.invokeLater(() -> showHome());
+    }
+
+    static void connectDB() {
+        try {
+            Class.forName("oracle.jdbc.driver.OracleDriver");
+            con = DriverManager.getConnection(
+                "jdbc:oracle:thin:@localhost:1521:xe", "system", "amirtha");
+            con.setAutoCommit(true);
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(null, "DB Error: " + e.getMessage());
+        }
+    }
+
+    // ===================== HOME =====================
+    static void showHome() {
+        JFrame f = new JFrame("ShopEase - Online Shopping");
+        f.setSize(380, 320);
+        f.setLocationRelativeTo(null);
+        f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        f.setLayout(null);
+
+        JLabel title = new JLabel("ShopEase", SwingConstants.CENTER);
+        title.setFont(new Font("SansSerif", Font.BOLD, 26));
+        title.setBounds(0, 30, 380, 40);
+
+        JLabel sub = new JLabel("Online Shopping System", SwingConstants.CENTER);
+        sub.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        sub.setForeground(Color.GRAY);
+        sub.setBounds(0, 72, 380, 25);
+
+        JButton loginBtn    = new JButton("Customer Login");
+        JButton registerBtn = new JButton("Register");
+        JButton adminBtn    = new JButton("Admin Login");
+
+        loginBtn.setBounds(100, 120, 180, 35);
+        registerBtn.setBounds(100, 165, 180, 35);
+        adminBtn.setBounds(100, 210, 180, 35);
+
+        styleButton(loginBtn,    new Color(41, 128, 185), Color.WHITE);
+        styleButton(registerBtn, new Color(39, 174, 96),  Color.WHITE);
+        styleButton(adminBtn,    new Color(142, 68, 173), Color.WHITE);
+
+        f.add(title); f.add(sub);
+        f.add(loginBtn); f.add(registerBtn); f.add(adminBtn);
+
+        loginBtn.addActionListener(e    -> loginForm(f));
+        registerBtn.addActionListener(e -> registerForm(f));
+        adminBtn.addActionListener(e    -> adminLogin(f));
+
+        f.setVisible(true);
+    }
+
+    static void styleButton(JButton b, Color bg, Color fg) {
+        b.setBackground(bg);
+        b.setForeground(fg);
+        b.setFocusPainted(false);
+        b.setFont(new Font("SansSerif", Font.BOLD, 13));
+        b.setBorderPainted(false);
+        b.setOpaque(true);
+        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    }
+
+    // ===================== REGISTER =====================
+    static void registerForm(JFrame parent) {
+        JDialog d = new JDialog(parent, "Register", true);
+        d.setSize(360, 310);
+        d.setLocationRelativeTo(parent);
+        d.setLayout(null);
+
+        JLabel title = new JLabel("Create Account", SwingConstants.CENTER);
+        title.setFont(new Font("SansSerif", Font.BOLD, 16));
+        title.setBounds(0, 12, 360, 28);
+
+        JTextField  name  = new JTextField();    name.setBounds(130,  55, 170, 28);
+        JTextField  email = new JTextField();   email.setBounds(130,  95, 170, 28);
+        JTextField  phone = new JTextField();   phone.setBounds(130, 135, 170, 28);
+        JPasswordField pass = new JPasswordField(); pass.setBounds(130, 175, 170, 28);
+
+        String[] lblTxt = {"Name *", "Email *", "Phone *", "Password *"};
+        int[]    lblY   = {55, 95, 135, 175};
+        for (int i = 0; i < 4; i++) {
+            JLabel l = new JLabel(lblTxt[i]);
+            l.setBounds(20, lblY[i], 100, 28);
+            d.add(l);
+        }
+
+        JButton submit = new JButton("Register");
+        JButton cancel = new JButton("Cancel");
+        submit.setBounds(60,  225, 110, 32);
+        cancel.setBounds(185, 225, 110, 32);
+        styleButton(submit, new Color(39, 174, 96),   Color.WHITE);
+        styleButton(cancel, new Color(149, 165, 166), Color.WHITE);
+
+        d.add(title); d.add(name); d.add(email); d.add(phone); d.add(pass);
+        d.add(submit); d.add(cancel);
+
+        submit.addActionListener(e -> {
+            String n  = name.getText().trim();
+            String em = email.getText().trim();
+            String ph = phone.getText().trim();
+            String pw = new String(pass.getPassword()).trim();
+
+            if (n.isEmpty() || em.isEmpty() || ph.isEmpty() || pw.isEmpty()) {
+                JOptionPane.showMessageDialog(d, "Please fill all fields."); return;
+            }
+            if (!em.matches("^[\\w._%+\\-]+@[\\w.\\-]+\\.[a-zA-Z]{2,}$")) {
+                JOptionPane.showMessageDialog(d, "Invalid email format."); return;
+            }
+            if (!ph.matches("\\d{10}")) {
+                JOptionPane.showMessageDialog(d, "Phone must be 10 digits."); return;
+            }
+            try {
+                PreparedStatement chk = con.prepareStatement(
+                    "SELECT customer_id FROM customers WHERE email = ?");
+                chk.setString(1, em);
+                ResultSet chkRs = chk.executeQuery();
+                if (chkRs.next()) {
+                    JOptionPane.showMessageDialog(d, "Email already registered."); return;
+                }
+                chk.close();
+
+                ResultSet cMaxRs = con.createStatement().executeQuery(
+                    "SELECT NVL(MAX(customer_id), 0) FROM customers");
+                cMaxRs.next();
+                int cMax = cMaxRs.getInt(1);
+                cMaxRs.close();
+                int cSeq = 0;
+                do {
+                    ResultSet cNx = con.createStatement().executeQuery(
+                        "SELECT customer_seq.NEXTVAL FROM DUAL");
+                    cNx.next(); cSeq = cNx.getInt(1); cNx.close();
+                } while (cSeq <= cMax);
+
+                PreparedStatement ps = con.prepareStatement(
+                    "INSERT INTO customers (customer_id, name, email, phone, password, address, created_date) " +
+                    "VALUES (?, ?, ?, ?, ?, NULL, SYSDATE)");
+                ps.setInt(1, cSeq);
+                ps.setString(2, n);
+                ps.setString(3, em);
+                ps.setString(4, ph);
+                ps.setString(5, pw);
+                ps.executeUpdate();
+                ps.close();
+
+                JOptionPane.showMessageDialog(d, "Registered successfully! Please login.");
+                d.dispose();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(d, "Error: " + ex.getMessage());
+            }
+        });
+        cancel.addActionListener(e -> d.dispose());
+        d.setVisible(true);
+    }
+
+    // ===================== LOGIN =====================
+    static void loginForm(JFrame parent) {
+        JDialog d = new JDialog(parent, "Customer Login", true);
+        d.setSize(320, 220);
+        d.setLocationRelativeTo(parent);
+        d.setLayout(null);
+
+        JLabel title = new JLabel("Customer Login", SwingConstants.CENTER);
+        title.setFont(new Font("SansSerif", Font.BOLD, 16));
+        title.setBounds(0, 12, 320, 28);
+
+        JTextField   email = new JTextField();   email.setBounds(120, 58, 160, 28);
+        JPasswordField pass = new JPasswordField(); pass.setBounds(120, 98, 160, 28);
+
+        JLabel lEmail = new JLabel("Email:");    lEmail.setBounds(20, 58, 90, 28);
+        JLabel lPass  = new JLabel("Password:"); lPass.setBounds(20, 98, 90, 28);
+
+        JButton login  = new JButton("Login");
+        JButton cancel = new JButton("Cancel");
+        login.setBounds(50,  148, 100, 32);
+        cancel.setBounds(165, 148, 100, 32);
+        styleButton(login,  new Color(41, 128, 185),  Color.WHITE);
+        styleButton(cancel, new Color(149, 165, 166), Color.WHITE);
+
+        d.add(title); d.add(lEmail); d.add(email);
+        d.add(lPass); d.add(pass); d.add(login); d.add(cancel);
+
+        login.addActionListener(e -> {
+            try {
+                PreparedStatement ps = con.prepareStatement(
+                    "SELECT customer_id FROM customers WHERE email = ? AND password = ?");
+                ps.setString(1, email.getText().trim());
+                ps.setString(2, new String(pass.getPassword()).trim());
+                ResultSet rs = ps.executeQuery();
+                if (rs.next()) {
+                    currentCustomerId = rs.getInt(1);
+                    ps.close();
+
+                    // FIX 1: Load cart from DB instead of clearing it
+                    loadCartFromDB();
+
+                    d.dispose();
+                    parent.dispose();
+                    customerPage();
+                } else {
+                    JOptionPane.showMessageDialog(d, "Invalid email or password.");
+                }
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(d, "Error: " + ex.getMessage());
+            }
+        });
+        pass.addActionListener(e -> login.doClick());
+        cancel.addActionListener(e -> d.dispose());
+        d.setVisible(true);
+    }
+
+    // ===================== CART DB PERSISTENCE =====================
+
+    /**
+     * FIX 2: Load this customer's saved cart from the DB into the in-memory HashMap.
+     * Called on every login so cart survives logout/re-login.
+     */
+    static void loadCartFromDB() {
+        cart.clear();
+        try {
+            PreparedStatement ps = con.prepareStatement(
+                "SELECT product_id, quantity FROM cart WHERE customer_id = ?");
+            ps.setInt(1, currentCustomerId);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                cart.put(rs.getInt("product_id"), rs.getInt("quantity"));
+            }
+            ps.close();
+        } catch (Exception ex) {
+            // cart table might not exist yet; silently continue with empty cart
+            System.out.println("loadCartFromDB: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * FIX 2: Persist a single product's quantity to the DB cart table.
+     * Uses MERGE (upsert) so it works for both add and update.
+     */
+    static void saveCartItemToDB(int productId, int quantity) {
+        try {
+            // Try update first
+            PreparedStatement upd = con.prepareStatement(
+                "UPDATE cart SET quantity = ? WHERE customer_id = ? AND product_id = ?");
+            upd.setInt(1, quantity);
+            upd.setInt(2, currentCustomerId);
+            upd.setInt(3, productId);
+            int rows = upd.executeUpdate();
+            upd.close();
+            if (rows == 0) {
+                // Row doesn't exist, insert it
+                PreparedStatement ins = con.prepareStatement(
+                    "INSERT INTO cart (customer_id, product_id, quantity) VALUES (?, ?, ?)");
+                ins.setInt(1, currentCustomerId);
+                ins.setInt(2, productId);
+                ins.setInt(3, quantity);
+                ins.executeUpdate();
+                ins.close();
+            }
+        } catch (Exception ex) {
+            System.out.println("saveCartItemToDB: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * FIX 2: Remove a single product from the DB cart table.
+     */
+    static void removeCartItemFromDB(int productId) {
+        try {
+            PreparedStatement ps = con.prepareStatement(
+                "DELETE FROM cart WHERE customer_id = ? AND product_id = ?");
+            ps.setInt(1, currentCustomerId);
+            ps.setInt(2, productId);
+            ps.executeUpdate();
+            ps.close();
+        } catch (Exception ex) {
+            System.out.println("removeCartItemFromDB: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * FIX 2: Clear the entire DB cart for this customer.
+     */
+    static void clearCartInDB() {
+        try {
+            PreparedStatement ps = con.prepareStatement(
+                "DELETE FROM cart WHERE customer_id = ?");
+            ps.setInt(1, currentCustomerId);
+            ps.executeUpdate();
+            ps.close();
+        } catch (Exception ex) {
+            System.out.println("clearCartInDB: " + ex.getMessage());
+        }
+    }
+
+    // ===================== CUSTOMER PAGE =====================
+    static void customerPage() {
+        JFrame f = new JFrame("ShopEase - Shopping");
+        f.setSize(820, 580);
+        f.setLocationRelativeTo(null);
+        f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.setFont(new Font("SansSerif", Font.BOLD, 13));
+
+        tabs.addTab("🛍 Products",  buildProductsTab(f));
+        tabs.addTab("🛒 Cart",      buildCartTab(f));
+        tabs.addTab("📦 My Orders", buildOrdersTab(f));
+        tabs.addTab("👤 Profile",   buildProfileTab(f));
+
+        tabs.addChangeListener(e -> {
+            int i = tabs.getSelectedIndex();
+            if (i == 1) refreshCartTab();
+            if (i == 2) refreshOrdersTab();
+            if (i == 3) refreshProfileTab();
+        });
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(new Color(41, 128, 185));
+        top.setBorder(BorderFactory.createEmptyBorder(8, 14, 8, 14));
+        JLabel welcome = new JLabel("Welcome to ShopEase");
+        welcome.setForeground(Color.WHITE);
+        welcome.setFont(new Font("SansSerif", Font.BOLD, 15));
+        JButton logout = new JButton("Logout");
+        styleButton(logout, Color.WHITE, new Color(41, 128, 185));
+        logout.addActionListener(e -> {
+            // FIX 2: On logout just clear the in-memory map; DB cart is already persisted
+            cart.clear();
+            currentCustomerId = -1;
+            f.dispose();
+            showHome();
+        });
+        top.add(welcome, BorderLayout.WEST);
+        top.add(logout,  BorderLayout.EAST);
+
+        f.add(top,  BorderLayout.NORTH);
+        f.add(tabs, BorderLayout.CENTER);
+        f.setVisible(true);
+    }
+
+    // ===================== PRODUCTS TAB =====================
+    static DefaultTableModel prodModel;
+
+    static JPanel buildProductsTab(JFrame parent) {
+        JPanel p = new JPanel(new BorderLayout(6, 6));
+        p.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        String[] cols = {"ID", "Name", "Category", "Price (Rs.)", "Stock"};
+        prodModel = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable table = new JTable(prodModel);
+        table.setRowHeight(24);
+        table.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 13));
+        table.getColumnModel().getColumn(0).setMaxWidth(50);
+        table.setSelectionBackground(new Color(174, 214, 241));
+
+        loadProducts(prodModel);
+
+        JPanel searchBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        JTextField searchField = new JTextField(18);
+        JButton searchBtn = new JButton("Search");
+        JButton resetBtn  = new JButton("Reset");
+        styleButton(searchBtn, new Color(41, 128, 185),  Color.WHITE);
+        styleButton(resetBtn,  new Color(149, 165, 166), Color.WHITE);
+        searchBar.add(new JLabel("Search:")); searchBar.add(searchField);
+        searchBar.add(searchBtn); searchBar.add(resetBtn);
+
+        searchBtn.addActionListener(e -> {
+            String kw = searchField.getText().trim().toLowerCase();
+            prodModel.setRowCount(0);
+            try {
+                PreparedStatement ps = con.prepareStatement(
+                    "SELECT product_id, product_name, category, price, stock_quantity " +
+                    "FROM products WHERE LOWER(product_name) LIKE ? OR LOWER(category) LIKE ?");
+                ps.setString(1, "%" + kw + "%"); ps.setString(2, "%" + kw + "%");
+                ResultSet rs = ps.executeQuery();
+                while (rs.next()) prodModel.addRow(new Object[]{
+                    rs.getInt(1), rs.getString(2), rs.getString(3),
+                    String.format("%.2f", rs.getDouble(4)), rs.getInt(5)});
+                ps.close();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(parent, ex.getMessage());
+            }
+        });
+        resetBtn.addActionListener(e -> { searchField.setText(""); loadProducts(prodModel); });
+
+        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 6));
+        JTextField qtyField = new JTextField("1", 5);
+        JButton addCartBtn = new JButton("Add to Cart");
+        JButton buyNowBtn  = new JButton("Buy Now");
+        styleButton(addCartBtn, new Color(39, 174, 96),   Color.WHITE);
+        styleButton(buyNowBtn,  new Color(41, 128, 185),  Color.WHITE);
+        bottom.add(new JLabel("Quantity:"));
+        bottom.add(qtyField);
+        bottom.add(addCartBtn);
+        bottom.add(buyNowBtn);
+
+        // FIX 2: Add to Cart now also persists to DB
+        addCartBtn.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row == -1) { JOptionPane.showMessageDialog(parent, "Select a product first."); return; }
+            int pid   = (int) prodModel.getValueAt(row, 0);
+            int stock = Integer.parseInt(prodModel.getValueAt(row, 4).toString());
+            int qty;
+            try { qty = Integer.parseInt(qtyField.getText().trim()); }
+            catch (NumberFormatException ex) { JOptionPane.showMessageDialog(parent, "Invalid quantity."); return; }
+            if (qty <= 0) { JOptionPane.showMessageDialog(parent, "Quantity must be > 0."); return; }
+            int already = cart.getOrDefault(pid, 0);
+            if (already + qty > stock) {
+                JOptionPane.showMessageDialog(parent, "Only " + (stock - already) + " units available."); return;
+            }
+            cart.merge(pid, qty, Integer::sum);
+            // Persist updated quantity to DB
+            saveCartItemToDB(pid, cart.get(pid));
+            JOptionPane.showMessageDialog(parent,
+                prodModel.getValueAt(row, 1) + " (x" + qty + ") added to cart ✅");
+            qtyField.setText("1");
+        });
+
+        buyNowBtn.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row == -1) { JOptionPane.showMessageDialog(parent, "Select a product first."); return; }
+            int pid   = (int) prodModel.getValueAt(row, 0);
+            int stock = Integer.parseInt(prodModel.getValueAt(row, 4).toString());
+            int qty;
+            try { qty = Integer.parseInt(qtyField.getText().trim()); }
+            catch (NumberFormatException ex) { JOptionPane.showMessageDialog(parent, "Invalid quantity."); return; }
+            if (qty <= 0) { JOptionPane.showMessageDialog(parent, "Quantity must be > 0."); return; }
+            if (qty > stock) {
+                JOptionPane.showMessageDialog(parent, "Only " + stock + " units in stock."); return;
+            }
+            HashMap<Integer, Integer> buyNowCart = new HashMap<>();
+            buyNowCart.put(pid, qty);
+            placeOrderFromMap(parent, buyNowCart);
+            loadProducts(prodModel);
+            qtyField.setText("1");
+        });
+
+        p.add(searchBar,            BorderLayout.NORTH);
+        p.add(new JScrollPane(table), BorderLayout.CENTER);
+        p.add(bottom,               BorderLayout.SOUTH);
+        return p;
+    }
+
+    // ===================== CART TAB =====================
+    static DefaultTableModel cartModel;
+    static JLabel cartTotalLabel;
+
+    static JPanel buildCartTab(JFrame parent) {
+        JPanel p = new JPanel(new BorderLayout(6, 6));
+        p.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        String[] cols = {"Product ID", "Name", "Unit Price", "Qty", "Subtotal"};
+        cartModel = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable table = new JTable(cartModel);
+        table.setRowHeight(24);
+        table.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 13));
+        table.setSelectionBackground(new Color(174, 214, 241));
+
+        cartTotalLabel = new JLabel("Total: Rs. 0.00");
+        cartTotalLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
+
+        JButton removeBtn   = new JButton("Remove Selected");
+        JButton clearBtn    = new JButton("Clear Cart");
+        JButton checkoutBtn = new JButton("Checkout");
+        styleButton(removeBtn,   new Color(231, 76, 60),   Color.WHITE);
+        styleButton(clearBtn,    new Color(149, 165, 166), Color.WHITE);
+        styleButton(checkoutBtn, new Color(39, 174, 96),   Color.WHITE);
+
+        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 6));
+        bottom.add(removeBtn); bottom.add(clearBtn);
+        bottom.add(cartTotalLabel); bottom.add(checkoutBtn);
+
+        // FIX 2: Remove from cart also removes from DB
+        removeBtn.addActionListener(e -> {
+            int row = table.getSelectedRow();
+            if (row == -1) { JOptionPane.showMessageDialog(parent, "Select a cart item."); return; }
+            int pid = (int) cartModel.getValueAt(row, 0);
+            cart.remove(pid);
+            removeCartItemFromDB(pid);
+            refreshCartTab();
+        });
+
+        // FIX 2: Clear cart also clears DB
+        clearBtn.addActionListener(e -> {
+            if (cart.isEmpty()) return;
+            int c = JOptionPane.showConfirmDialog(parent, "Clear entire cart?", "Confirm", JOptionPane.YES_NO_OPTION);
+            if (c == JOptionPane.YES_OPTION) {
+                cart.clear();
+                clearCartInDB();
+                refreshCartTab();
+            }
+        });
+
+        checkoutBtn.addActionListener(e -> {
+            placeOrderFromMap(parent, cart);
+            if (!cart.isEmpty()) {
+                cart.clear();
+                // DB cart is cleared inside placeOrderFromMap on success
+                refreshCartTab();
+            }
+            loadProducts(prodModel);
+        });
+
+        p.add(new JScrollPane(table), BorderLayout.CENTER);
+        p.add(bottom, BorderLayout.SOUTH);
+        return p;
+    }
+
+    static void refreshCartTab() {
+        if (cartModel == null) return;
+        cartModel.setRowCount(0);
+        double total = 0;
+        for (int pid : cart.keySet()) {
+            try {
+                PreparedStatement ps = con.prepareStatement(
+                    "SELECT product_name, price FROM products WHERE product_id = ?");
+                ps.setInt(1, pid);
+                ResultSet rs = ps.executeQuery();
+                if (rs.next()) {
+                    int    qty   = cart.get(pid);
+                    double price = rs.getDouble("price");
+                    double sub   = price * qty;
+                    total += sub;
+                    cartModel.addRow(new Object[]{
+                        pid, rs.getString("product_name"),
+                        String.format("%.2f", price), qty,
+                        String.format("%.2f", sub)});
+                }
+                ps.close();
+            } catch (Exception ex) { System.out.println(ex); }
+        }
+        if (cartTotalLabel != null)
+            cartTotalLabel.setText("Total: Rs. " + String.format("%.2f", total));
+    }
+
+    // ===================== PLACE ORDER =====================
+    static void placeOrderFromMap(JFrame parent, HashMap<Integer, Integer> orderItems) {
+        if (orderItems == null || orderItems.isEmpty()) {
+            JOptionPane.showMessageDialog(parent, "No items to order."); return;
+        }
+
+        String addr = JOptionPane.showInputDialog(parent, "Enter delivery address:");
+        if (addr == null || addr.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(parent, "Address is required."); return;
+        }
+
+        // ── Collect product data into plain Java objects first (all SELECTs done here) ──
+        // We store everything we need so zero DB reads happen during INSERT phase.
+        int[]    pids   = new int[orderItems.size()];
+        int[]    qtys   = new int[orderItems.size()];
+        double[] prices = new double[orderItems.size()];
+        String[] names  = new String[orderItems.size()];
+
+        StringBuilder summary = new StringBuilder("Order Summary:\n\n");
+        double total = 0;
+        int idx = 0;
+
+        try {
+            for (int pid : orderItems.keySet()) {
+                Statement st = con.createStatement();
+                ResultSet rs = st.executeQuery(
+                    "SELECT product_name, price, stock_quantity FROM products WHERE product_id = " + pid);
+                if (!rs.next()) {
+                    rs.close(); st.close();
+                    JOptionPane.showMessageDialog(parent, "Product ID " + pid + " not found."); return;
+                }
+                String nm  = rs.getString(1);
+                double pr  = rs.getDouble(2);
+                int    stk = rs.getInt(3);
+                int    qty = orderItems.get(pid);
+                rs.close(); st.close();
+
+                if (qty > stk) {
+                    JOptionPane.showMessageDialog(parent, nm + " only has " + stk + " in stock."); return;
+                }
+                pids[idx] = pid; qtys[idx] = qty; prices[idx] = pr; names[idx] = nm;
+                total += pr * qty;
+                summary.append(String.format("%-22s x%d  Rs.%.2f%n", nm, qty, pr * qty));
+                idx++;
+            }
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(parent, "Validation error: " + ex.getMessage()); return;
+        }
+        summary.append(String.format("%n%-24s Rs.%.2f", "TOTAL", total));
+
+        if (JOptionPane.showConfirmDialog(parent, summary.toString(),
+                "Confirm Order", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return;
+
+        // ── Get new order_id ──
+        int orderId;
+        try {
+            ResultSet rs = con.createStatement().executeQuery(
+                "SELECT NVL(MAX(order_id),0)+1 FROM orderss");
+            rs.next(); orderId = rs.getInt(1); rs.close();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(parent, "Cannot get order ID: " + ex.getMessage()); return;
+        }
+
+        // ── Insert everything in one transaction so FK sees parent in same session ──
+        try {
+            con.setAutoCommit(false);
+
+            // 1) INSERT into orders (the correct parent table that ORDERS_PK belongs to)
+            PreparedStatement ps = con.prepareStatement(
+                "INSERT INTO orderss(order_id,customer_id,order_date,total_amount,order_status)" +
+                " VALUES(?,?,SYSDATE,?,'Pending')");
+            ps.setInt(1, orderId); ps.setInt(2, currentCustomerId); ps.setDouble(3, total);
+            ps.executeUpdate(); ps.close();
+
+            // 2) INSERT order_items (FK SYS_C008425 references ORDERS_PK — same transaction, passes)
+            for (int i = 0; i < idx; i++) {
+                ResultSet ri = con.createStatement().executeQuery(
+                    "SELECT NVL(MAX(order_item_id),0)+1 FROM order_items");
+                ri.next(); int itemId = ri.getInt(1); ri.close();
+
+                PreparedStatement ip = con.prepareStatement(
+                    "INSERT INTO order_items(order_item_id,order_id,product_id,quantity,price)" +
+                    " VALUES(?,?,?,?,?)");
+                ip.setInt(1, itemId); ip.setInt(2, orderId);
+                ip.setInt(3, pids[i]); ip.setInt(4, qtys[i]); ip.setDouble(5, prices[i]);
+                ip.executeUpdate(); ip.close();
+
+                // 3) Deduct stock
+                PreparedStatement up = con.prepareStatement(
+                    "UPDATE products SET stock_quantity=stock_quantity-? WHERE product_id=?");
+                up.setInt(1, qtys[i]); up.setInt(2, pids[i]);
+                up.executeUpdate(); up.close();
+            }
+
+            con.commit();
+            con.setAutoCommit(true);
+
+        } catch (Exception ex) {
+            try { con.rollback(); } catch (Exception ignored) {}
+            try { con.setAutoCommit(true); } catch (Exception ignored) {}
+            JOptionPane.showMessageDialog(parent, "Order failed: " + ex.getMessage());
+            return;
+        }
+
+        // Success
+        clearCartInDB();
+        JOptionPane.showMessageDialog(parent,
+            "✅ Order placed!\n\n" + summary +
+            "\n\nDeliver to: " + addr.trim() +
+            "\nOrder ID: ORD-" + String.format("%04d", orderId),
+            "Order Confirmed", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    // ===================== ORDERS TAB =====================
+    static DefaultTableModel ordersModel;
+
+    static JPanel buildOrdersTab(JFrame parent) {
+        JPanel p = new JPanel(new BorderLayout(6, 6));
+        p.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        String[] cols = {"Order ID", "Date", "Total (Rs.)", "Status"};
+        ordersModel = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable table = new JTable(ordersModel);
+        table.setRowHeight(24);
+        table.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 13));
+        table.setSelectionBackground(new Color(174, 214, 241));
+
+        JButton refreshBtn = new JButton("Refresh");
+        styleButton(refreshBtn, new Color(41, 128, 185), Color.WHITE);
+        refreshBtn.addActionListener(e -> refreshOrdersTab());
+
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        top.add(new JLabel("Your past orders:")); top.add(refreshBtn);
+
+        p.add(top,                  BorderLayout.NORTH);
+        p.add(new JScrollPane(table), BorderLayout.CENTER);
+        return p;
+    }
+
+    static void refreshOrdersTab() {
+        if (ordersModel == null) return;
+        ordersModel.setRowCount(0);
+        try {
+            PreparedStatement ps = con.prepareStatement(
+                "SELECT order_id, order_date, total_amount, order_status " +
+                "FROM orderss WHERE customer_id = ? ORDER BY order_date DESC");
+            ps.setInt(1, currentCustomerId);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                ordersModel.addRow(new Object[]{
+                    "ORD-" + String.format("%04d", rs.getInt(1)),
+                    rs.getDate(2),
+                    String.format("%.2f", rs.getDouble(3)),
+                    rs.getString(4)});
+            }
+            ps.close();
+        } catch (Exception ex) { System.out.println(ex); }
+    }
+
+    // ===================== PROFILE TAB =====================
+    static JTextField profName, profEmail, profPhone, profAddr;
+
+    static JPanel buildProfileTab(JFrame parent) {
+        JPanel p = new JPanel(new GridBagLayout());
+        p.setBorder(BorderFactory.createEmptyBorder(20, 40, 20, 40));
+        GridBagConstraints g = new GridBagConstraints();
+        g.insets = new Insets(7, 7, 7, 7);
+        g.fill   = GridBagConstraints.HORIZONTAL;
+
+        JLabel title = new JLabel("My Profile");
+        title.setFont(new Font("SansSerif", Font.BOLD, 16));
+
+        profName  = new JTextField(20); profEmail = new JTextField(20);
+        profPhone = new JTextField(20); profAddr  = new JTextField(20);
+
+        g.gridx = 0; g.gridy = 0; g.gridwidth = 2;
+        p.add(title, g);
+
+        String[]     lbls = {"Name:", "Email:", "Phone:", "Address:"};
+        JTextField[] flds = {profName, profEmail, profPhone, profAddr};
+        for (int i = 0; i < 4; i++) {
+            g.gridy = i + 1; g.gridwidth = 1; g.gridx = 0; g.weightx = 0;
+            p.add(new JLabel(lbls[i]), g);
+            g.gridx = 1; g.weightx = 1;
+            p.add(flds[i], g);
+        }
+
+        JButton saveBtn = new JButton("Save Changes");
+        styleButton(saveBtn, new Color(39, 174, 96), Color.WHITE);
+        g.gridy = 5; g.gridx = 0; g.gridwidth = 2; g.weightx = 0;
+        p.add(saveBtn, g);
+
+        saveBtn.addActionListener(e -> {
+            String email = profEmail.getText().trim();
+            String phone = profPhone.getText().trim();
+            if (!email.matches("^[\\w._%+\\-]+@[\\w.\\-]+\\.[a-zA-Z]{2,}$")) {
+                JOptionPane.showMessageDialog(parent, "Invalid email."); return;
+            }
+            if (!phone.isEmpty() && !phone.matches("\\d{10}")) {
+                JOptionPane.showMessageDialog(parent, "Phone must be 10 digits."); return;
+            }
+            try {
+                PreparedStatement ps = con.prepareStatement(
+                    "UPDATE customers SET name = ?, email = ?, phone = ?, address = ? " +
+                    "WHERE customer_id = ?");
+                ps.setString(1, profName.getText().trim());
+                ps.setString(2, email);
+                ps.setString(3, phone.isEmpty() ? null : phone);
+                ps.setString(4, profAddr.getText().trim().isEmpty() ? null : profAddr.getText().trim());
+                ps.setInt(5, currentCustomerId);
+                ps.executeUpdate();
+                ps.close();
+                JOptionPane.showMessageDialog(parent, "Profile updated ✅");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(parent, "Error: " + ex.getMessage());
+            }
+        });
+        return p;
+    }
+
+    static void refreshProfileTab() {
+        if (profName == null) return;
+        try {
+            PreparedStatement ps = con.prepareStatement(
+                "SELECT name, email, phone, address FROM customers WHERE customer_id = ?");
+            ps.setInt(1, currentCustomerId);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) {
+                profName.setText(rs.getString("name"));
+                profEmail.setText(rs.getString("email"));
+                profPhone.setText(rs.getString("phone")   != null ? rs.getString("phone")   : "");
+                profAddr.setText(rs.getString("address") != null ? rs.getString("address") : "");
+            }
+            ps.close();
+        } catch (Exception ex) { System.out.println(ex); }
+    }
+
+    // ===================== LOAD PRODUCTS =====================
+    static void loadProducts(DefaultTableModel model) {
+        if (model == null) return;
+        try {
+            model.setRowCount(0);
+            ResultSet rs = con.createStatement().executeQuery(
+                "SELECT product_id, product_name, category, price, stock_quantity " +
+                "FROM products ORDER BY product_id");
+            while (rs.next()) {
+                model.addRow(new Object[]{
+                    rs.getInt(1), rs.getString(2), rs.getString(3),
+                    String.format("%.2f", rs.getDouble(4)), rs.getInt(5)});
+            }
+        } catch (Exception e) { System.out.println(e); }
+    }
+
+    // ===================== ADMIN LOGIN =====================
+    static void adminLogin(JFrame parent) {
+        JDialog d = new JDialog(parent, "Admin Login", true);
+        d.setSize(300, 200);
+        d.setLocationRelativeTo(parent);
+        d.setLayout(null);
+
+        JLabel title = new JLabel("Admin Login", SwingConstants.CENTER);
+        title.setFont(new Font("SansSerif", Font.BOLD, 15));
+        title.setBounds(0, 12, 300, 28);
+
+        JTextField   user = new JTextField();    user.setBounds(120, 55, 140, 28);
+        JPasswordField pass = new JPasswordField(); pass.setBounds(120, 93, 140, 28);
+        JLabel lu = new JLabel("Username:"); lu.setBounds(20, 55, 90, 28);
+        JLabel lp = new JLabel("Password:"); lp.setBounds(20, 93, 90, 28);
+
+        JButton ok     = new JButton("Login");
+        JButton cancel = new JButton("Cancel");
+        ok.setBounds(50,  138, 90, 30);
+        cancel.setBounds(155, 138, 90, 30);
+        styleButton(ok,     new Color(142, 68, 173), Color.WHITE);
+        styleButton(cancel, new Color(149, 165, 166), Color.WHITE);
+
+        d.add(title); d.add(lu); d.add(user); d.add(lp); d.add(pass);
+        d.add(ok); d.add(cancel);
+
+        ok.addActionListener(e -> {
+            if (user.getText().equals("admin") && new String(pass.getPassword()).equals("1234")) {
+                d.dispose(); parent.dispose(); adminPanel();
+            } else {
+                JOptionPane.showMessageDialog(d, "Invalid credentials.");
+            }
+        });
+        cancel.addActionListener(e -> d.dispose());
+        d.setVisible(true);
+    }
+
+    // ===================== ADMIN PANEL =====================
+    static void adminPanel() {
+        JFrame a = new JFrame("ShopEase - Admin Dashboard");
+        a.setSize(820, 580);
+        a.setLocationRelativeTo(null);
+        a.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setBackground(new Color(142, 68, 173));
+        top.setBorder(BorderFactory.createEmptyBorder(8, 14, 8, 14));
+        JLabel wtitle = new JLabel("Admin Dashboard");
+        wtitle.setForeground(Color.WHITE);
+        wtitle.setFont(new Font("SansSerif", Font.BOLD, 15));
+        JButton logout = new JButton("Logout");
+        styleButton(logout, Color.WHITE, new Color(142, 68, 173));
+        logout.addActionListener(e -> { a.dispose(); showHome(); });
+        top.add(wtitle, BorderLayout.WEST);
+        top.add(logout, BorderLayout.EAST);
+
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.setFont(new Font("SansSerif", Font.BOLD, 13));
+        tabs.addTab("📦 Products",    buildAdminProductsTab(a));
+        tabs.addTab("🛒 Orders",       buildAdminOrdersTab(a));
+        tabs.addTab("👥 Customers",    buildAdminCustomersTab(a));
+        tabs.addTab("📊 Sales Report", buildSalesTab(a));
+
+        tabs.addChangeListener(e -> {
+            int i = tabs.getSelectedIndex();
+            if (i == 0) refreshAdminProducts();
+            if (i == 1) refreshAdminOrders();
+            if (i == 2) refreshAdminCustomers();
+            if (i == 3) refreshSalesTab();
+        });
+
+        a.add(top,  BorderLayout.NORTH);
+        a.add(tabs, BorderLayout.CENTER);
+        a.setVisible(true);
+        refreshAdminProducts();
+    }
+
+    // ===================== ADMIN PRODUCTS TAB =====================
+    static DefaultTableModel adminProdModel;
+    static JTextField apName, apCat, apPrice, apStock, apDesc, apIdField, apDelId;
+
+    static JPanel buildAdminProductsTab(JFrame parent) {
+        JPanel p = new JPanel(new BorderLayout(6, 6));
+        p.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        JPanel form = new JPanel(new GridBagLayout());
+        form.setBorder(BorderFactory.createTitledBorder(
+            "Add / Update Product  (enter ID to update, leave blank to add)"));
+        GridBagConstraints g = new GridBagConstraints();
+        g.insets = new Insets(4, 6, 4, 6);
+        g.fill   = GridBagConstraints.HORIZONTAL;
+
+        apIdField = new JTextField(6); apName  = new JTextField(14);
+        apCat     = new JTextField(10); apPrice = new JTextField(8);
+        apStock   = new JTextField(8); apDesc  = new JTextField(20);
+        apDelId   = new JTextField(6);
+
+        Object[][] rows = {
+            {"Product ID (update):", apIdField, "Name *:",  apName},
+            {"Category *:",          apCat,     "Price *:", apPrice},
+            {"Stock *:",             apStock,   "Desc:",    apDesc}
+        };
+        for (int i = 0; i < rows.length; i++) {
+            g.gridy = i;
+            for (int j = 0; j < 4; j++) {
+                g.gridx = j;
+                g.weightx = j % 2 == 0 ? 0 : 1;
+                form.add(j % 2 == 0 ? new JLabel(rows[i][j].toString()) : (Component) rows[i][j], g);
+            }
+        }
+
+        JButton saveBtn     = new JButton("Save Product");
+        JButton delBtn      = new JButton("Delete by ID:");
+        JButton clearFormBtn = new JButton("Clear Form");
+        styleButton(saveBtn,      new Color(39, 174, 96),   Color.WHITE);
+        styleButton(delBtn,       new Color(231, 76, 60),   Color.WHITE);
+        styleButton(clearFormBtn, new Color(149, 165, 166), Color.WHITE);
+
+        g.gridy = 3; g.gridx = 0; g.weightx = 0; g.gridwidth = 1;
+        form.add(saveBtn, g);
+        g.gridx = 1; form.add(clearFormBtn, g);
+        g.gridx = 2; form.add(delBtn, g);
+        g.gridx = 3; g.weightx = 1; form.add(apDelId, g);
+
+        clearFormBtn.addActionListener(e -> {
+            apIdField.setText(""); apName.setText(""); apCat.setText("");
+            apPrice.setText(""); apStock.setText(""); apDesc.setText("");
+        });
+
+        String[] cols = {"ID", "Name", "Category", "Price", "Stock", "Description"};
+        adminProdModel = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable table = new JTable(adminProdModel);
+        table.setRowHeight(24);
+        table.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 13));
+        table.getColumnModel().getColumn(0).setMaxWidth(45);
+
+        table.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int r = table.getSelectedRow();
+                    if (r == -1) return;
+                    apIdField.setText(adminProdModel.getValueAt(r, 0).toString());
+                    apName.setText(adminProdModel.getValueAt(r, 1).toString());
+                    apCat.setText(adminProdModel.getValueAt(r, 2).toString());
+                    apPrice.setText(adminProdModel.getValueAt(r, 3).toString().replace(",", ""));
+                    apStock.setText(adminProdModel.getValueAt(r, 4).toString());
+                    apDesc.setText(adminProdModel.getValueAt(r, 5) != null
+                        ? adminProdModel.getValueAt(r, 5).toString() : "");
+                }
+            }
+        });
+
+        JButton refreshBtn = new JButton("Refresh");
+        styleButton(refreshBtn, new Color(41, 128, 185), Color.WHITE);
+        refreshBtn.addActionListener(e -> refreshAdminProducts());
+        JLabel hint = new JLabel("  Tip: Double-click a row to load it for editing.");
+        hint.setForeground(Color.GRAY);
+
+        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        topBar.add(refreshBtn); topBar.add(hint);
+
+        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, form, new JScrollPane(table));
+        split.setResizeWeight(0.38);
+
+        saveBtn.addActionListener(e -> adminSaveProduct(parent));
+        delBtn.addActionListener(e  -> adminDeleteProduct(parent));
+
+        p.add(topBar, BorderLayout.NORTH);
+        p.add(split,  BorderLayout.CENTER);
+        return p;
+    }
+
+    static void refreshAdminProducts() {
+        if (adminProdModel == null) return;
+        adminProdModel.setRowCount(0);
+        try {
+            ResultSet rs = con.createStatement().executeQuery(
+                "SELECT product_id, product_name, category, price, stock_quantity, description " +
+                "FROM products ORDER BY product_id");
+            while (rs.next()) adminProdModel.addRow(new Object[]{
+                rs.getInt(1), rs.getString(2), rs.getString(3),
+                String.format("%.2f", rs.getDouble(4)), rs.getInt(5), rs.getString(6)});
+        } catch (Exception e) { System.out.println(e); }
+    }
+
+    static void adminSaveProduct(JFrame parent) {
+        String name   = apName.getText().trim();
+        String cat    = apCat.getText().trim();
+        String priceS = apPrice.getText().trim();
+        String stockS = apStock.getText().trim();
+        String desc   = apDesc.getText().trim();
+        String idS    = apIdField.getText().trim();
+
+        if (!idS.isEmpty()) {
+            try {
+                int id = Integer.parseInt(idS);
+                PreparedStatement fetchPs = con.prepareStatement(
+                    "SELECT product_name, category, price, stock_quantity, description " +
+                    "FROM products WHERE product_id = ?");
+                fetchPs.setInt(1, id);
+                ResultSet rs = fetchPs.executeQuery();
+                if (!rs.next()) {
+                    JOptionPane.showMessageDialog(parent, "Product ID not found ❌"); return;
+                }
+                String finalName   = name.isEmpty()    ? rs.getString(1) : name;
+                String finalCat    = cat.isEmpty()     ? rs.getString(2) : cat;
+                String finalPriceS = priceS.isEmpty()  ? String.valueOf(rs.getDouble(3)) : priceS;
+                String finalStockS = stockS.isEmpty()  ? String.valueOf(rs.getInt(4))    : stockS;
+                String finalDesc   = desc.isEmpty()    ? (rs.getString(5) != null ? rs.getString(5) : "") : desc;
+                fetchPs.close();
+
+                double price; int stock;
+                try { price = Double.parseDouble(finalPriceS); stock = Integer.parseInt(finalStockS); }
+                catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(parent, "Invalid price or stock value."); return;
+                }
+
+                PreparedStatement ps = con.prepareStatement(
+                    "UPDATE products SET product_name = ?, category = ?, price = ?, " +
+                    "stock_quantity = ?, description = ? WHERE product_id = ?");
+                ps.setString(1, finalName); ps.setString(2, finalCat);
+                ps.setDouble(3, price);     ps.setInt(4, stock);
+                ps.setString(5, finalDesc.isEmpty() ? null : finalDesc);
+                ps.setInt(6, id);
+                ps.executeUpdate();
+                ps.close();
+
+                JOptionPane.showMessageDialog(parent, "Product updated ✅");
+                apIdField.setText(""); apName.setText(""); apCat.setText("");
+                apPrice.setText(""); apStock.setText(""); apDesc.setText("");
+                refreshAdminProducts();
+
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(parent, "Invalid Product ID.");
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(parent, "Error: " + ex.getMessage());
+            }
+            return;
+        }
+
+        if (name.isEmpty() || cat.isEmpty() || priceS.isEmpty() || stockS.isEmpty()) {
+            JOptionPane.showMessageDialog(parent, "Name, Category, Price and Stock are required."); return;
+        }
+        try {
+            double price = Double.parseDouble(priceS);
+            int    stock = Integer.parseInt(stockS);
+
+            ResultSet maxRs = con.createStatement().executeQuery(
+                "SELECT NVL(MAX(product_id), 0) FROM products");
+            maxRs.next();
+            int maxId = maxRs.getInt(1);
+            maxRs.close();
+
+            int seqVal = 0;
+            do {
+                ResultSet nxRs = con.createStatement().executeQuery(
+                    "SELECT product_seq.NEXTVAL FROM DUAL");
+                nxRs.next();
+                seqVal = nxRs.getInt(1);
+                nxRs.close();
+            } while (seqVal <= maxId);
+
+            PreparedStatement ps = con.prepareStatement(
+                "INSERT INTO products (product_id, product_name, category, price, stock_quantity, description) " +
+                "VALUES (?, ?, ?, ?, ?, ?)");
+            ps.setInt(1, seqVal);
+            ps.setString(2, name); ps.setString(3, cat);
+            ps.setDouble(4, price); ps.setInt(5, stock);
+            ps.setString(6, desc.isEmpty() ? null : desc);
+            ps.executeUpdate();
+            ps.close();
+
+            JOptionPane.showMessageDialog(parent, "Product added ✅");
+            apIdField.setText(""); apName.setText(""); apCat.setText("");
+            apPrice.setText(""); apStock.setText(""); apDesc.setText("");
+            refreshAdminProducts();
+
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(parent, "Invalid price or stock value.");
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(parent, "Error: " + ex.getMessage());
+        }
+    }
+
+    static void adminDeleteProduct(JFrame parent) {
+        String idS = apDelId.getText().trim();
+        if (idS.isEmpty()) { JOptionPane.showMessageDialog(parent, "Enter product ID to delete."); return; }
+        int id;
+        try { id = Integer.parseInt(idS); }
+        catch (NumberFormatException e) { JOptionPane.showMessageDialog(parent, "Invalid ID."); return; }
+        int c = JOptionPane.showConfirmDialog(parent, "Delete product ID " + id + "?", "Confirm", JOptionPane.YES_NO_OPTION);
+        if (c != JOptionPane.YES_OPTION) return;
+        try {
+            PreparedStatement ps = con.prepareStatement("DELETE FROM products WHERE product_id = ?");
+            ps.setInt(1, id);
+            int rows = ps.executeUpdate();
+            ps.close();
+            if (rows > 0) { JOptionPane.showMessageDialog(parent, "Deleted ✅"); apDelId.setText(""); }
+            else JOptionPane.showMessageDialog(parent, "ID not found ❌");
+            refreshAdminProducts();
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(parent, "Error: " + ex.getMessage());
+        }
+    }
+
+    // ===================== ADMIN ORDERS TAB =====================
+    static DefaultTableModel adminOrdersModel;
+    static JTextField updateOrdId;
+    static JComboBox<String> statusBox;
+
+    static JPanel buildAdminOrdersTab(JFrame parent) {
+        JPanel p = new JPanel(new BorderLayout(6, 6));
+        p.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        JPanel ctrl = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 6));
+        ctrl.setBorder(BorderFactory.createTitledBorder("Update Order Status"));
+        updateOrdId = new JTextField(8);
+        statusBox   = new JComboBox<>(new String[]{"Pending", "Shipped", "Delivered"});
+        JButton updateBtn = new JButton("Update");
+        styleButton(updateBtn, new Color(41, 128, 185), Color.WHITE);
+        ctrl.add(new JLabel("Order ID:")); ctrl.add(updateOrdId);
+        ctrl.add(new JLabel("Status:")); ctrl.add(statusBox);
+        ctrl.add(updateBtn);
+
+        updateBtn.addActionListener(e -> {
+            String idS = updateOrdId.getText().trim();
+            if (idS.isEmpty()) { JOptionPane.showMessageDialog(parent, "Enter order ID."); return; }
+            try {
+                int oid = Integer.parseInt(idS);
+                PreparedStatement ps = con.prepareStatement(
+                    "UPDATE orderss SET order_status = ? WHERE order_id = ?");
+                ps.setString(1, statusBox.getSelectedItem().toString());
+                ps.setInt(2, oid);
+                int rows = ps.executeUpdate();
+                ps.close();
+                if (rows > 0) JOptionPane.showMessageDialog(parent, "Order updated ✅");
+                else          JOptionPane.showMessageDialog(parent, "Order ID not found ❌");
+                refreshAdminOrders();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(parent, "Error: " + ex.getMessage());
+            }
+        });
+
+        String[] cols = {"Order ID", "Customer", "Date", "Total (Rs.)", "Status"};
+        adminOrdersModel = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable table = new JTable(adminOrdersModel);
+        table.setRowHeight(24);
+        table.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 13));
+
+        table.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int r = table.getSelectedRow();
+                    if (r == -1) return;
+                    updateOrdId.setText(adminOrdersModel.getValueAt(r, 0).toString());
+                    statusBox.setSelectedItem(adminOrdersModel.getValueAt(r, 4).toString());
+                }
+            }
+        });
+
+        JButton refreshBtn = new JButton("Refresh");
+        styleButton(refreshBtn, new Color(41, 128, 185), Color.WHITE);
+        refreshBtn.addActionListener(e -> refreshAdminOrders());
+        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        topBar.add(refreshBtn);
+        JLabel hint2 = new JLabel("  Tip: Double-click a row to load order ID for update.");
+        hint2.setForeground(Color.GRAY);
+        topBar.add(hint2);
+
+        JPanel center = new JPanel(new BorderLayout());
+        center.add(topBar, BorderLayout.NORTH);
+        center.add(new JScrollPane(table), BorderLayout.CENTER);
+
+        p.add(ctrl,   BorderLayout.NORTH);
+        p.add(center, BorderLayout.CENTER);
+        return p;
+    }
+
+    static void refreshAdminOrders() {
+        if (adminOrdersModel == null) return;
+        adminOrdersModel.setRowCount(0);
+        try {
+            ResultSet rs = con.createStatement().executeQuery(
+                "SELECT o.order_id, c.name, o.order_date, o.total_amount, o.order_status " +
+                "FROM orderss o JOIN customers c ON o.customer_id = c.customer_id " +
+                "ORDER BY o.order_date DESC");
+            while (rs.next()) adminOrdersModel.addRow(new Object[]{
+                rs.getInt(1), rs.getString(2), rs.getDate(3),
+                String.format("%.2f", rs.getDouble(4)), rs.getString(5)});
+        } catch (Exception e) { System.out.println(e); }
+    }
+
+    // ===================== ADMIN CUSTOMERS TAB =====================
+    static DefaultTableModel adminCustModel;
+
+    static JPanel buildAdminCustomersTab(JFrame parent) {
+        JPanel p = new JPanel(new BorderLayout(6, 6));
+        p.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        String[] cols = {"ID", "Name", "Email", "Phone", "Address", "Registered"};
+        adminCustModel = new DefaultTableModel(cols, 0) {
+            public boolean isCellEditable(int r, int c) { return false; }
+        };
+        JTable table = new JTable(adminCustModel);
+        table.setRowHeight(24);
+        table.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 13));
+
+        JButton refreshBtn = new JButton("Refresh");
+        styleButton(refreshBtn, new Color(41, 128, 185), Color.WHITE);
+        refreshBtn.addActionListener(e -> refreshAdminCustomers());
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        top.add(refreshBtn);
+
+        p.add(top,                  BorderLayout.NORTH);
+        p.add(new JScrollPane(table), BorderLayout.CENTER);
+        return p;
+    }
+
+    static void refreshAdminCustomers() {
+        if (adminCustModel == null) return;
+        adminCustModel.setRowCount(0);
+        try {
+            ResultSet rs = con.createStatement().executeQuery(
+                "SELECT customer_id, name, email, phone, address, created_date " +
+                "FROM customers ORDER BY customer_id");
+            while (rs.next()) adminCustModel.addRow(new Object[]{
+                rs.getInt(1), rs.getString(2), rs.getString(3),
+                rs.getString(4) != null ? rs.getString(4) : "—",
+                rs.getString(5) != null ? rs.getString(5) : "—",
+                rs.getDate(6)});
+        } catch (Exception e) { System.out.println(e); }
+    }
+
+    // ===================== SALES REPORT TAB =====================
+    static JTextArea salesArea;
+    static double[]  salesRevenue = {};
+    static String[]  salesLabels  = {};
+    static JPanel    salesChartPanel;
+
+    static JPanel buildSalesTab(JFrame parent) {
+        JPanel p = new JPanel(new BorderLayout(6, 6));
+        p.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+        salesArea = new JTextArea();
+        salesArea.setFont(new Font("Monospaced", Font.PLAIN, 13));
+        salesArea.setEditable(false);
+
+        salesChartPanel = new JPanel() {
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                drawSalesChart((Graphics2D) g, getWidth(), getHeight());
+            }
+        };
+        salesChartPanel.setBackground(Color.WHITE);
+        salesChartPanel.setBorder(BorderFactory.createTitledBorder("Product-wise Revenue Chart"));
+        salesChartPanel.setPreferredSize(new Dimension(600, 240));
+
+        JButton refreshBtn = new JButton("Refresh");
+        styleButton(refreshBtn, new Color(142, 68, 173), Color.WHITE);
+        refreshBtn.addActionListener(e -> refreshSalesTab());
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        top.add(refreshBtn);
+
+        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
+            salesChartPanel, new JScrollPane(salesArea));
+        split.setResizeWeight(0.5);
+
+        p.add(top,   BorderLayout.NORTH);
+        p.add(split, BorderLayout.CENTER);
+        return p;
+    }
+
+    static void refreshSalesTab() {
+        if (salesArea == null) return;
+        StringBuilder sb = new StringBuilder();
+        sb.append("══════════ SALES REPORT ══════════\n\n");
+        sb.append(String.format("%-28s %12s %10s%n", "Product", "Units Sold", "Revenue"));
+        sb.append("─".repeat(54)).append("\n");
+
+        java.util.List<String> lblList = new java.util.ArrayList<>();
+        java.util.List<Double> revList = new java.util.ArrayList<>();
+
+        try {
+            ResultSet rs = con.createStatement().executeQuery(
+                "SELECT p.product_name, SUM(oi.quantity) AS units, " +
+                "SUM(oi.quantity * oi.price) AS revenue " +
+                "FROM order_items oi JOIN products p ON oi.product_id = p.product_id " +
+                "GROUP BY p.product_name ORDER BY revenue DESC");
+
+            boolean any = false;
+            while (rs.next()) {
+                any = true;
+                String name = rs.getString("product_name");
+                int units   = rs.getInt("units");
+                double rev  = rs.getDouble("revenue");
+                sb.append(String.format("%-28s %12d Rs.%7.2f%n", name, units, rev));
+                lblList.add(name.length() > 12 ? name.substring(0, 12) : name);
+                revList.add(rev);
+            }
+            if (!any) sb.append("  No sales data found.\n");
+
+            sb.append("\n─── Order Status Summary ───\n");
+            ResultSet statusRs = con.createStatement().executeQuery(
+                "SELECT order_status, COUNT(*) AS cnt, SUM(total_amount) AS total " +
+                "FROM orderss GROUP BY order_status");
+            while (statusRs.next()) {
+                sb.append(String.format("  %-12s : %d orders  Rs.%.2f%n",
+                    statusRs.getString(1), statusRs.getInt(2), statusRs.getDouble(3)));
+            }
+
+            ResultSet totalRs = con.createStatement().executeQuery(
+                "SELECT COUNT(*), SUM(total_amount) FROM orderss");
+            if (totalRs.next()) {
+                sb.append(String.format("%n  Total Orders: %d   Grand Revenue: Rs.%.2f%n",
+                    totalRs.getInt(1), totalRs.getDouble(2)));
+            }
+
+        } catch (Exception ex) {
+            sb.append("Error: ").append(ex.getMessage()).append("\n");
+        }
+
+        salesArea.setText(sb.toString());
+        salesRevenue = revList.stream().mapToDouble(Double::doubleValue).toArray();
+        salesLabels  = lblList.toArray(new String[0]);
+        salesChartPanel.repaint();
+    }
+
+    static void drawSalesChart(Graphics2D g, int w, int h) {
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(Color.WHITE);
+        g.fillRect(0, 0, w, h);
+
+        if (salesRevenue.length == 0) {
+            g.setColor(Color.GRAY);
+            g.setFont(new Font("SansSerif", Font.PLAIN, 13));
+            g.drawString("No sales data. Click Refresh.", w / 2 - 110, h / 2);
+            return;
+        }
+
+        int padL = 55, padR = 20, padT = 20, padB = 55;
+        int chartW = w - padL - padR;
+        int chartH = h - padT - padB;
+
+        double maxVal = 0;
+        for (double v : salesRevenue) if (v > maxVal) maxVal = v;
+        if (maxVal == 0) maxVal = 1;
+
+        int n   = salesRevenue.length;
+        int gap = chartW / n;
+        int barW = (int)(gap * 0.6);
+
+        Color[] colors = {
+            new Color(41, 128, 185), new Color(39, 174, 96),
+            new Color(231, 76, 60),  new Color(243, 156, 18),
+            new Color(142, 68, 173), new Color(26, 188, 156),
+            new Color(52, 73, 94),   new Color(230, 126, 34)
+        };
+
+        for (int i = 0; i <= 4; i++) {
+            int y = padT + chartH - (int)(chartH * i / 4.0);
+            g.setColor(new Color(230, 230, 230));
+            g.drawLine(padL, y, padL + chartW, y);
+            g.setColor(Color.GRAY);
+            g.setFont(new Font("SansSerif", Font.PLAIN, 9));
+            g.drawString("Rs." + (int)(maxVal * i / 4), 2, y + 4);
+        }
+
+        g.setColor(Color.DARK_GRAY);
+        g.drawLine(padL, padT, padL, padT + chartH);
+        g.drawLine(padL, padT + chartH, padL + chartW, padT + chartH);
+
+        for (int i = 0; i < n; i++) {
+            int barH = (int)(chartH * salesRevenue[i] / maxVal);
+            int x = padL + i * gap + (gap - barW) / 2;
+            int y = padT + chartH - barH;
+            g.setColor(colors[i % colors.length]);
+            g.fillRoundRect(x, y, barW, barH, 6, 6);
+            g.setColor(colors[i % colors.length].darker());
+            g.drawRoundRect(x, y, barW, barH, 6, 6);
+
+            g.setColor(Color.DARK_GRAY);
+            g.setFont(new Font("SansSerif", Font.PLAIN, 9));
+            String val = "Rs." + (int) salesRevenue[i];
+            int tw = g.getFontMetrics().stringWidth(val);
+            if (barH > 14) g.drawString(val, x + barW / 2 - tw / 2, y - 3);
+
+            String lbl = i < salesLabels.length ? salesLabels[i] : "";
+            int lw = g.getFontMetrics().stringWidth(lbl);
+            g.drawString(lbl, x + barW / 2 - lw / 2, padT + chartH + 14);
+        }
+    }
+}
