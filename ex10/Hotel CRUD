@@ -1,0 +1,829 @@
+package dbms;
+import javax.swing.*;
+import java.awt.*;
+import java.sql.*;
+public class HotelCRUD {
+	JFrame f;
+    JTabbedPane tab;
+    Connection con;
+    JMenuBar mb;
+    JMenu menu;
+    JMenuItem insert, update, delete, view;
+    JTextField e_name,e_salary,e_join,e_street,e_city,e_pin,e_email;
+    JTextArea e_area;
+    JTextField e_id;
+    JTextField c_id,c_name,c_desc;
+    JTextArea c_area;
+    JTextField f_id,f_name,f_price,f_time,f_spice,f_type,f_b,f_l,f_d,f_cat;
+    JTextArea f_area;
+    String[] yn = {"Yes", "No"};
+    JComboBox<String> f_bi, f_li, f_di;
+    JTextField o_id,o_emp,o_type,o_odate,o_ddate,o_dtime,o_loc,o_qty,o_price,o_inst;
+    JTextArea o_area;
+    HotelCRUD(){
+        f=new JFrame("Hotel DB System");
+        tab=new JTabbedPane();
+        connectDB();
+        tab.add("Employee",employeePanel());
+        //tab.add("Category",categoryPanel());
+        //tab.add("Food",foodPanel());
+        //tab.add("Orders",ordersPanel());
+        mb=new JMenuBar();
+        menu=new JMenu("Operations");
+        insert=new JMenuItem("Insert");
+        update=new JMenuItem("Update");
+        delete=new JMenuItem("Delete");
+        view=new JMenuItem("View");
+        menu.add(insert);
+        menu.add(update);
+        menu.add(delete);
+        menu.add(view);
+        mb.add(menu);
+        f.setJMenuBar(mb);
+        addActions();
+        f.add(tab);
+        f.setSize(900,650);
+        f.setVisible(true);
+        f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    }
+    void connectDB(){
+        try{
+            Class.forName("oracle.jdbc.driver.OracleDriver");
+            con = DriverManager.getConnection(
+                "jdbc:oracle:thin:@localhost:1521:xe","system","amirtha");
+            JOptionPane.showMessageDialog(f,"Connected Successfully ");
+        }catch(Exception e){
+            e.printStackTrace();  
+            JOptionPane.showMessageDialog(f,"DB Error: " + e.getMessage());
+        }
+    }
+    JLabel l(String s,int x,int y){
+        JLabel lb=new JLabel(s);
+        lb.setBounds(x,y,150,25);
+        return lb;
+    }
+    JTextField t(int x,int y){
+        JTextField tf=new JTextField();
+        tf.setBounds(x,y,150,25);
+        return tf;
+    }
+    JPanel employeePanel(){
+        JPanel p=new JPanel(null);
+        p.add(l("ID (for Update/Delete)",20,20)); 
+        e_id=t(180,20);
+        p.add(l("Name",20,60)); 
+        e_name=t(180,60);
+        p.add(l("Salary",20,100)); 
+        e_salary=t(180,100);
+        p.add(l("Join Date (YYYY-MM-DD)",20,140)); 
+        e_join=t(180,140);
+        p.add(l("Street",20,180)); 
+        e_street=t(180,180);
+        p.add(l("City",20,220)); 
+        e_city=t(180,220);
+        p.add(l("Pincode",20,260)); 
+        e_pin=t(180,260);
+        p.add(l("Email",20,300)); 
+        e_email=t(180,300);
+        e_area=new JTextArea();
+        JScrollPane sp=new JScrollPane(e_area);
+        sp.setBounds(20,350,800,200);
+        p.add(e_id);p.add(e_name);p.add(e_salary);p.add(e_join);
+        p.add(e_street);p.add(e_city);p.add(e_pin);p.add(e_email);
+        p.add(sp);
+        return p;
+    }
+    /*JPanel categoryPanel(){
+        JPanel p=new JPanel(null);
+        p.add(l("ID(for update/delete)",20,20)); c_id=t(180,20);
+        p.add(l("Name",20,60)); c_name=t(180,60);
+        p.add(l("Desc",20,100)); c_desc=t(180,100);
+        c_area=new JTextArea();
+        JScrollPane sp=new JScrollPane(c_area);
+        sp.setBounds(20,150,800,400);
+        p.add(c_id);p.add(c_name);p.add(c_desc);p.add(sp);
+        return p;
+    }
+    JPanel foodPanel(){
+        JPanel p = new JPanel(null);
+
+        p.add(l("ID",20,20)); f_id = t(180,20);
+        p.add(l("Name",20,60)); f_name = t(180,60);
+        p.add(l("Price",20,100)); f_price = t(180,100);
+        p.add(l("Prep Time",20,140)); f_time = t(180,140);
+        p.add(l("Spice",20,180)); f_spice = t(180,180);
+        p.add(l("Type",20,220)); f_type = t(180,220);
+
+        
+        String[] yn = {"Yes","No"};
+
+        
+        p.add(l("Breakfast",20,260));
+        f_bi = new JComboBox<>(yn);
+        f_bi.setBounds(180,260,150,25);
+
+        
+        p.add(l("Lunch",20,300));
+        f_li = new JComboBox<>(yn);
+        f_li.setBounds(180,300,150,25);
+
+        
+        p.add(l("Dinner",20,340));
+        f_di = new JComboBox<>(yn);
+        f_di.setBounds(180,340,150,25);
+
+        p.add(l("CatID",20,380)); f_cat = t(180,380);
+
+        // Text area
+        f_area = new JTextArea();
+        JScrollPane sp = new JScrollPane(f_area);
+        sp.setBounds(20,430,800,120);
+
+        
+        p.add(f_id); p.add(f_name); p.add(f_price); p.add(f_time);
+        p.add(f_spice); p.add(f_type);
+        p.add(f_bi);  
+        p.add(f_li);   
+        p.add(f_di);   
+        p.add(f_cat);
+        p.add(sp);
+
+        return p;
+    }
+    
+    JPanel ordersPanel(){
+        JPanel p = new JPanel(null);
+
+        p.add(l("Order ID",20,20)); o_id = t(180,20);
+        p.add(l("EmpID",20,60)); o_emp = t(180,60);
+        p.add(l("Type",20,100)); o_type = t(180,100);
+        p.add(l("Order Date",20,140)); o_odate = t(180,140);
+        p.add(l("Delivery Date",20,180)); o_ddate = t(180,180);
+        p.add(l("Location",20,220)); o_loc = t(180,220);
+        p.add(l("Qty",20,260)); o_qty = t(180,260);
+        p.add(l("Price",20,300)); o_price = t(180,300);
+
+        o_area = new JTextArea();
+        JScrollPane sp = new JScrollPane(o_area);
+        sp.setBounds(20,350,800,150);
+
+        p.add(o_id);
+        p.add(o_emp);
+        p.add(o_type);
+        p.add(o_odate);
+        p.add(o_ddate);
+        p.add(o_loc);
+        p.add(o_qty);
+        p.add(o_price);
+        p.add(sp);
+
+        return p;
+    }*/
+
+    
+    void addActions(){
+
+        insert.addActionListener(e->{
+            int t=tab.getSelectedIndex();
+
+            try{
+
+                if(t==0){ // EMPLOYEE
+
+                    if(!e_email.getText().matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$"))
+                        throw new Exception("Invalid Email");
+
+                    if(!e_pin.getText().matches("\\d{6}"))
+                        throw new Exception("Invalid Pincode");
+
+                    PreparedStatement ps = con.prepareStatement(
+                    		"INSERT INTO employee VALUES(emp_seq.NEXTVAL,?,?,?,?,?,?,?)");
+
+                    ps.setString(1, e_name.getText());                 // employee_name
+                    ps.setDouble(2, Double.parseDouble(e_salary.getText())); // salary
+                    ps.setDate(3, Date.valueOf(e_join.getText()));     // joined_date
+                    ps.setString(4, e_street.getText());
+                    ps.setString(5, e_city.getText());
+                    ps.setInt(6, Integer.parseInt(e_pin.getText()));
+                    ps.setString(7, e_email.getText());
+                    ps.executeUpdate();
+                    e_area.setText("Inserted");
+                }
+
+                if(t==1){
+                    PreparedStatement ps=con.prepareStatement(
+                    "INSERT INTO food_category VALUES(category_seq.NEXTVAL,?,?)");
+                    ps.setString(1,c_name.getText());
+                    ps.setString(2,c_desc.getText());
+                    ps.executeUpdate();
+                    c_area.setText("Inserted");
+                }
+
+                if(t==2){
+                    PreparedStatement ps=con.prepareStatement(
+                    "INSERT INTO food_item VALUES(food_seq.NEXTVAL,?,?,?,?,?,?,?,?,?)");
+
+                    ps.setString(1,f_name.getText());
+                    ps.setDouble(2,Double.parseDouble(f_price.getText()));
+                    ps.setInt(3,Integer.parseInt(f_time.getText()));
+                    ps.setString(4,f_spice.getText());
+                    ps.setString(5,f_type.getText());
+
+                    
+                    ps.setString(6, f_bi.getSelectedItem().toString());
+                    ps.setString(7, f_li.getSelectedItem().toString());
+                    ps.setString(8, f_di.getSelectedItem().toString());
+
+                    ps.setInt(9,Integer.parseInt(f_cat.getText()));
+
+                    ps.executeUpdate();
+                    f_area.setText("Inserted ✅");
+                }
+
+                if(t==3){
+                    PreparedStatement ps = con.prepareStatement(
+                    "INSERT INTO orders (order_id, employee_id, order_type, order_date, delivery_date, delivery_location, total_quantity, total_price) VALUES (order_seq.NEXTVAL,?,?,?,?,?,?,?)");
+
+                    ps.setInt(1, Integer.parseInt(o_emp.getText()));
+                    ps.setString(2, o_type.getText());
+                    ps.setDate(3, Date.valueOf(o_odate.getText()));
+                    ps.setDate(4, Date.valueOf(o_ddate.getText()));
+                    ps.setString(5, o_loc.getText());
+                    ps.setInt(6, Integer.parseInt(o_qty.getText()));
+                    ps.setDouble(7, Double.parseDouble(o_price.getText()));
+
+                    ps.executeUpdate();
+                    o_area.setText("Inserted ✅");
+                }
+
+            }catch(Exception ex){
+                JOptionPane.showMessageDialog(f,ex.getMessage());
+            }
+        });
+
+        // UPDATE
+        update.addActionListener(e -> {
+            try {
+
+                // ================= EMPLOYEE =================
+                if (tab.getSelectedIndex() == 0) {
+
+                    String idStr = e_id.getText();
+                    if (idStr == null || idStr.trim().isEmpty()) {
+                        JOptionPane.showMessageDialog(f, "Enter Employee ID first!");
+                        return;
+                    }
+                    int id = Integer.parseInt(idStr);
+
+                    String[] options = {
+                        "Name","Salary","Joined Date",
+                        "Street","City","Pincode","Email","All Fields"
+                    };
+
+                    int choice = JOptionPane.showOptionDialog(
+                            f, "Select field to update", "Update Employee",
+                            JOptionPane.DEFAULT_OPTION,
+                            JOptionPane.INFORMATION_MESSAGE,
+                            null, options, options[0]);
+
+                    if (choice == -1) return;
+
+                    PreparedStatement ps = null;
+
+                    switch (choice) {
+
+                        case 0: // Name
+                            String name = JOptionPane.showInputDialog("Enter Name:");
+                            if (name == null || name.trim().isEmpty()) return;
+
+                            ps = con.prepareStatement(
+                                    "UPDATE employee SET employee_name=? WHERE employee_id=?");
+                            ps.setString(1, name);
+                            ps.setInt(2, id);
+                            break;
+
+                        case 1: // Salary
+                            String salStr = JOptionPane.showInputDialog("Enter Salary:");
+                            if (salStr == null || !salStr.matches("\\d+(\\.\\d+)?")) {
+                                JOptionPane.showMessageDialog(f, "Invalid Salary");
+                                return;
+                            }
+
+                            ps = con.prepareStatement(
+                                    "UPDATE employee SET salary=? WHERE employee_id=?");
+                            ps.setDouble(1, Double.parseDouble(salStr));
+                            ps.setInt(2, id);
+                            break;
+
+                        case 2: // Date
+                            String dateStr = JOptionPane.showInputDialog("Enter Date (YYYY-MM-DD):");
+                            try {
+                                Date d = Date.valueOf(dateStr);
+                                ps = con.prepareStatement(
+                                        "UPDATE employee SET joined_date=? WHERE employee_id=?");
+                                ps.setDate(1, d);
+                                ps.setInt(2, id);
+                            } catch (Exception ex) {
+                                JOptionPane.showMessageDialog(f, "Invalid Date");
+                                return;
+                            }
+                            break;
+
+                        case 3: // Street
+                            String st = JOptionPane.showInputDialog("Enter Street:");
+                            if (st == null || st.trim().isEmpty()) return;
+
+                            ps = con.prepareStatement(
+                                    "UPDATE employee SET address_street=? WHERE employee_id=?");
+                            ps.setString(1, st);
+                            ps.setInt(2, id);
+                            break;
+
+                        case 4: // City
+                            String city = JOptionPane.showInputDialog("Enter City:");
+                            if (city == null || city.trim().isEmpty()) return;
+
+                            ps = con.prepareStatement(
+                                    "UPDATE employee SET address_city=? WHERE employee_id=?");
+                            ps.setString(1, city);
+                            ps.setInt(2, id);
+                            break;
+
+                        case 5: // Pincode
+                            String pin = JOptionPane.showInputDialog("Enter Pincode:");
+                            if (pin == null || !pin.matches("\\d{6}")) {
+                                JOptionPane.showMessageDialog(f, "Invalid Pincode");
+                                return;
+                            }
+
+                            ps = con.prepareStatement(
+                                    "UPDATE employee SET address_pincode=? WHERE employee_id=?");
+                            ps.setInt(1, Integer.parseInt(pin));
+                            ps.setInt(2, id);
+                            break;
+
+                        case 6: // Email
+                            String email = JOptionPane.showInputDialog("Enter Email:");
+                            if (email == null || !email.matches("^[A-Za-z0-9._%+-]+@(gmail|yahoo|ymail)\\.com$")) {
+                                JOptionPane.showMessageDialog(f, "Invalid Email");
+                                return;
+                            }
+
+                            ps = con.prepareStatement(
+                                    "UPDATE employee SET email_id=? WHERE employee_id=?");
+                            ps.setString(1, email);
+                            ps.setInt(2, id);
+                            break;
+
+                        case 7: // All fields
+                            ps = con.prepareStatement(
+                                    "UPDATE employee SET employee_name=?, salary=?, joined_date=?, address_street=?, address_city=?, address_pincode=?, email_id=? WHERE employee_id=?");
+
+                            ps.setString(1, e_name.getText());
+                            ps.setDouble(2, Double.parseDouble(e_salary.getText()));
+                            ps.setDate(3, Date.valueOf(e_join.getText()));
+                            ps.setString(4, e_street.getText());
+                            ps.setString(5, e_city.getText());
+                            ps.setInt(6, Integer.parseInt(e_pin.getText()));
+                            ps.setString(7, e_email.getText());
+                            ps.setInt(8, id);
+                            break;
+                    }
+
+                    if (ps != null) {
+                        int r = ps.executeUpdate();
+                        e_area.setText(r > 0 ? "Employee Updated " : "ID Not Found ");
+                    }
+                }
+
+                // ================= CATEGORY =================
+                /*else if (tab.getSelectedIndex() == 1) {
+
+                    int id = Integer.parseInt(c_id.getText());
+
+                    String[] options = {"Name","Description"};
+
+                    int choice = JOptionPane.showOptionDialog(f,"Select Field","Update Category",
+                            JOptionPane.DEFAULT_OPTION,JOptionPane.INFORMATION_MESSAGE,null,options,options[0]);
+
+                    if (choice == -1) return;
+
+                    PreparedStatement ps = null;
+
+                    if (choice == 0) {
+                        String name = JOptionPane.showInputDialog("Enter Category Name:");
+                        if (name == null || name.trim().isEmpty()) return;
+
+                        ps = con.prepareStatement(
+                                "UPDATE food_category SET category_name=? WHERE category_id=?");
+                        ps.setString(1, name);
+                        ps.setInt(2, id);
+                    } else {
+                        String desc = JOptionPane.showInputDialog("Enter Description:");
+                        if (desc == null || desc.trim().isEmpty()) return;
+
+                        ps = con.prepareStatement(
+                                "UPDATE food_category SET category_description=? WHERE category_id=?");
+                        ps.setString(1, desc);
+                        ps.setInt(2, id);
+                    }
+
+                    int r = ps.executeUpdate();
+                    c_area.setText(r > 0 ? "Category Updated " : "ID Not Found ");
+                }
+
+                // ================= FOOD =================
+                else if (tab.getSelectedIndex() == 2) {
+
+                    if (f_id.getText().isEmpty()) {
+                        JOptionPane.showMessageDialog(f, "Enter Food ID");
+                        return;
+                    }
+
+                    int id = Integer.parseInt(f_id.getText());
+
+                    String[] options = {
+                        "Name","Price","Prep Time","Spice","Type",
+                        "Breakfast","Lunch","Dinner","Category ID","All Fields"
+                    };
+
+                    int choice = JOptionPane.showOptionDialog(
+                            f,"Select Field","Update Food",
+                            JOptionPane.DEFAULT_OPTION,
+                            JOptionPane.INFORMATION_MESSAGE,
+                            null,options,options[0]);
+
+                    if (choice == -1) return;
+
+                    PreparedStatement ps = null;
+
+                    switch (choice) {
+
+                        case 0: // Name
+                            String name = JOptionPane.showInputDialog("Enter Food Name:");
+                            if (name == null || name.trim().isEmpty()) return;
+
+                            ps = con.prepareStatement(
+                            "UPDATE food_item SET food_name=? WHERE food_id=?");
+                            ps.setString(1, name);
+                            ps.setInt(2, id);
+                            break;
+
+                        case 1: // Price
+                            String priceStr = JOptionPane.showInputDialog("Enter Price:");
+                            if (priceStr == null || !priceStr.matches("\\d+(\\.\\d+)?")) {
+                                JOptionPane.showMessageDialog(f,"Invalid Price");
+                                return;
+                            }
+
+                            ps = con.prepareStatement(
+                            "UPDATE food_item SET price_per_unit=? WHERE food_id=?");
+                            ps.setDouble(1, Double.parseDouble(priceStr));
+                            ps.setInt(2, id);
+                            break;
+
+                        case 2: // Prep Time
+                            String timeStr = JOptionPane.showInputDialog("Enter Time:");
+                            if (timeStr == null || !timeStr.matches("\\d+")) {
+                                JOptionPane.showMessageDialog(f,"Invalid Time");
+                                return;
+                            }
+
+                            ps = con.prepareStatement(
+                            "UPDATE food_item SET preparation_time=? WHERE food_id=?");
+                            ps.setInt(1, Integer.parseInt(timeStr));
+                            ps.setInt(2, id);
+                            break;
+
+                        case 3: // Spice
+                            String spice = JOptionPane.showInputDialog("Enter Spice Level:");
+                            if (spice == null || spice.trim().isEmpty()) return;
+
+                            ps = con.prepareStatement(
+                            "UPDATE food_item SET spice_level=? WHERE food_id=?");
+                            ps.setString(1, spice);
+                            ps.setInt(2, id);
+                            break;
+
+                        case 4: // Type
+                            String type = JOptionPane.showInputDialog("Enter Food Type:");
+                            if (type == null || type.trim().isEmpty()) return;
+
+                            ps = con.prepareStatement(
+                            "UPDATE food_item SET food_type=? WHERE food_id=?");
+                            ps.setString(1, type);
+                            ps.setInt(2, id);
+                            break;
+
+                        case 5: // Breakfast
+                            String b = (String) JOptionPane.showInputDialog(
+                                    f,"Breakfast?","Select",
+                                    JOptionPane.QUESTION_MESSAGE,null,
+                                    new String[]{"Yes","No"},"Yes");
+
+                            if (b == null) return;
+
+                            ps = con.prepareStatement(
+                            "UPDATE food_item SET breakfast_schedule=? WHERE food_id=?");
+                            ps.setString(1, b);
+                            ps.setInt(2, id);
+                            break;
+
+                        case 6: // Lunch
+                            String l = (String) JOptionPane.showInputDialog(
+                                    f,"Lunch?","Select",
+                                    JOptionPane.QUESTION_MESSAGE,null,
+                                    new String[]{"Yes","No"},"Yes");
+
+                            if (l == null) return;
+
+                            ps = con.prepareStatement(
+                            "UPDATE food_item SET lunch_schedule=? WHERE food_id=?");
+                            ps.setString(1, l);
+                            ps.setInt(2, id);
+                            break;
+
+                        case 7: // Dinner
+                            String d = (String) JOptionPane.showInputDialog(
+                                    f,"Dinner?","Select",
+                                    JOptionPane.QUESTION_MESSAGE,null,
+                                    new String[]{"Yes","No"},"Yes");
+
+                            if (d == null) return;
+
+                            ps = con.prepareStatement(
+                            "UPDATE food_item SET dinner_schedule=? WHERE food_id=?");
+                            ps.setString(1, d);
+                            ps.setInt(2, id);
+                            break;
+
+                        case 8: // Category ID
+                            String catStr = JOptionPane.showInputDialog("Enter Category ID:");
+                            if (catStr == null || !catStr.matches("\\d+")) {
+                                JOptionPane.showMessageDialog(f,"Invalid Category ID");
+                                return;
+                            }
+
+                            ps = con.prepareStatement(
+                            "UPDATE food_item SET category_id=? WHERE food_id=?");
+                            ps.setInt(1, Integer.parseInt(catStr));
+                            ps.setInt(2, id);
+                            break;
+
+                        case 9: // 🔥 ALL FIELDS
+                            ps = con.prepareStatement(
+                            "UPDATE food_item SET food_name=?, price_per_unit=?, preparation_time=?, spice_level=?, food_type=?, breakfast_schedule=?, lunch_schedule=?, dinner_schedule=?, category_id=? WHERE food_id=?");
+
+                            ps.setString(1, f_name.getText());
+                            ps.setDouble(2, Double.parseDouble(f_price.getText()));
+                            ps.setInt(3, Integer.parseInt(f_time.getText()));
+                            ps.setString(4, f_spice.getText());
+                            ps.setString(5, f_type.getText());
+
+                            ps.setString(6, f_bi.getSelectedItem().toString());
+                            ps.setString(7, f_li.getSelectedItem().toString());
+                            ps.setString(8, f_di.getSelectedItem().toString());
+
+                            ps.setInt(9, Integer.parseInt(f_cat.getText()));
+                            ps.setInt(10, id);
+                            break;
+                    }
+
+                    if (ps != null) {
+                        int r = ps.executeUpdate();
+                        f_area.setText(r > 0 ? "Food Updated " : "ID Not Found ");
+                    }
+                }
+                // ================= ORDERS =================
+                else if (tab.getSelectedIndex() == 3) {
+
+                    if (o_id.getText().isEmpty()) {
+                        JOptionPane.showMessageDialog(f, "Enter Order ID");
+                        return;
+                    }
+
+                    int id = Integer.parseInt(o_id.getText());
+
+                    String[] options = {
+                        "Order Type","Location","Quantity","Price","All Fields"
+                    };
+
+                    int choice = JOptionPane.showOptionDialog(
+                            f,"Select Field","Update Order",
+                            JOptionPane.DEFAULT_OPTION,
+                            JOptionPane.INFORMATION_MESSAGE,
+                            null,options,options[0]);
+
+                    if (choice == -1) return;
+
+                    PreparedStatement ps = null;
+
+                    switch (choice) {
+
+                        case 0: // Order Type
+                            String type = JOptionPane.showInputDialog("Enter Order Type:");
+                            if (type == null || type.trim().isEmpty()) return;
+
+                            ps = con.prepareStatement(
+                            "UPDATE orders SET order_type=? WHERE order_id=?");
+                            ps.setString(1, type);
+                            ps.setInt(2, id);
+                            break;
+
+                        case 1: // Location
+                            String loc = JOptionPane.showInputDialog("Enter Location:");
+                            if (loc == null || loc.trim().isEmpty()) return;
+
+                            ps = con.prepareStatement(
+                            "UPDATE orders SET delivery_location=? WHERE order_id=?");
+                            ps.setString(1, loc);
+                            ps.setInt(2, id);
+                            break;
+
+                        case 2: // Quantity
+                            String qtyStr = JOptionPane.showInputDialog("Enter Quantity:");
+                            if (qtyStr == null || !qtyStr.matches("\\d+")) {
+                                JOptionPane.showMessageDialog(f,"Invalid Quantity");
+                                return;
+                            }
+
+                            ps = con.prepareStatement(
+                            "UPDATE orders SET total_quantity=? WHERE order_id=?");
+                            ps.setInt(1, Integer.parseInt(qtyStr));
+                            ps.setInt(2, id);
+                            break;
+
+                        case 3: // Price
+                            String priceStr = JOptionPane.showInputDialog("Enter Price:");
+                            if (priceStr == null || !priceStr.matches("\\d+(\\.\\d+)?")) {
+                                JOptionPane.showMessageDialog(f,"Invalid Price");
+                                return;
+                            }
+
+                            ps = con.prepareStatement(
+                            "UPDATE orders SET total_price=? WHERE order_id=?");
+                            ps.setDouble(1, Double.parseDouble(priceStr));
+                            ps.setInt(2, id);
+                            break;
+
+                        case 4: // 🔥 ALL FIELDS
+                            ps = con.prepareStatement(
+                            "UPDATE orders SET customer_id=?, order_type=?, order_date=?, delivery_date=?, delivery_location=?, total_quantity=?, total_price=? WHERE order_id=?");
+
+                            ps.setInt(1, Integer.parseInt(o_emp.getText())); // customer_id
+                            ps.setString(2, o_type.getText());
+                            ps.setDate(3, Date.valueOf(o_odate.getText()));
+                            ps.setDate(4, Date.valueOf(o_ddate.getText()));
+                            ps.setString(5, o_loc.getText());
+                            ps.setInt(6, Integer.parseInt(o_qty.getText()));
+                            ps.setDouble(7, Double.parseDouble(o_price.getText()));
+                            ps.setInt(8, id);
+                            break;
+                    }
+
+                    if (ps != null) {
+                        int r = ps.executeUpdate();
+                        o_area.setText(r > 0 ? "Order Updated " : "ID Not Found ");
+                    }
+                }
+
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(f, ex.getMessage());
+            }
+        });
+        delete.addActionListener(e->{
+            try{
+
+               
+                if(tab.getSelectedIndex()==0){
+
+                    PreparedStatement ps=con.prepareStatement(
+                    "DELETE FROM employee WHERE employee_id=?");
+
+                    ps.setInt(1,Integer.parseInt(e_id.getText()));
+
+                    int r = ps.executeUpdate();
+                    e_area.setText(r>0 ? "Employee Deleted " : "ID Not Found ");
+                }
+
+                
+                if(tab.getSelectedIndex()==1){
+
+                    PreparedStatement ps=con.prepareStatement(
+                    "DELETE FROM food_category WHERE category_id=?");
+
+                    ps.setInt(1,Integer.parseInt(c_id.getText()));
+
+                    int r = ps.executeUpdate();
+                    c_area.setText(r>0 ? "Category Deleted " : "ID Not Found ");
+                }
+
+                
+                if(tab.getSelectedIndex()==2){
+
+                    PreparedStatement ps=con.prepareStatement(
+                    "DELETE FROM food_item WHERE food_id=?");
+
+                    ps.setInt(1,Integer.parseInt(f_id.getText()));
+
+                    int r = ps.executeUpdate();
+                    f_area.setText(r>0 ? "Food Deleted " : "ID Not Found ");
+                }
+
+                
+                if(tab.getSelectedIndex()==3){
+
+                    PreparedStatement ps=con.prepareStatement(
+                    "DELETE FROM orders WHERE order_id=?");
+
+                    ps.setInt(1,Integer.parseInt(o_id.getText()));
+
+                    int r = ps.executeUpdate();
+                    o_area.setText(r>0 ? "Order Deleted " : "ID Not Found ");
+                }*/
+
+            }catch(Exception ex){
+                JOptionPane.showMessageDialog(f,ex.getMessage());
+            }
+        });
+        
+        
+        view.addActionListener(e -> {
+            try {
+                Statement st = con.createStatement();
+                ResultSet rs = null;
+
+                // ========= EMPLOYEE =========
+                if (tab.getSelectedIndex() == 0) {
+                    rs = st.executeQuery("SELECT * FROM employee");
+                    e_area.setText("");
+
+                    ResultSetMetaData md = rs.getMetaData();
+                    int cols = md.getColumnCount();
+
+                    while (rs.next()) {
+                        for (int i = 1; i <= cols; i++) {
+                            e_area.append(rs.getString(i) + " | ");
+                        }
+                        e_area.append("\n");
+                    }
+                }
+
+                // ========= FOOD CATEGORY =========
+                /*else if (tab.getSelectedIndex() == 1) {
+                    rs = st.executeQuery("SELECT * FROM food_category");
+                    c_area.setText("");
+
+                    ResultSetMetaData md = rs.getMetaData();
+                    int cols = md.getColumnCount();
+
+                    while (rs.next()) {
+                        for (int i = 1; i <= cols; i++) {
+                            c_area.append(rs.getString(i) + " | ");
+                        }
+                        c_area.append("\n");
+                    }
+                }
+
+                // ========= FOOD ITEM =========
+                else if (tab.getSelectedIndex() == 2) {
+                    rs = st.executeQuery("SELECT * FROM food_item");
+                    f_area.setText("");
+
+                    ResultSetMetaData md = rs.getMetaData();
+                    int cols = md.getColumnCount();
+
+                    while (rs.next()) {
+                        for (int i = 1; i <= cols; i++) {
+                            f_area.append(rs.getString(i) + " | ");
+                        }
+                        f_area.append("\n");
+                    }
+                }
+
+                // ========= ORDERS =========
+                else if (tab.getSelectedIndex() == 3) {
+                    rs = st.executeQuery("SELECT * FROM orders");
+                    o_area.setText("");
+
+                    ResultSetMetaData md = rs.getMetaData();
+                    int cols = md.getColumnCount();
+
+                    while (rs.next()) {
+                        for (int i = 1; i <= cols; i++) {
+                            o_area.append(rs.getString(i) + " | ");
+                        }
+                        o_area.append("\n");
+                    }
+                }*/
+
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(f, ex.getMessage());
+            }
+        });
+    }
+
+    public static void main(String[] args){
+        new HotelCRUD();
+    }
+}
