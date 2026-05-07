@@ -1,0 +1,19 @@
+CREATE TABLE order_error_log (
+    message VARCHAR2(50),
+    log_date DATE
+);
+
+-- Trigger
+CREATE OR REPLACE TRIGGER trg_error_log
+AFTER INSERT OR UPDATE ON orders
+FOR EACH ROW
+BEGIN
+    IF :NEW.total_quantity < 0 THEN
+        INSERT INTO order_error_log
+        VALUES ('Invalid quantity', SYSDATE);
+        
+        -- Email sending simulation (real email needs UTL_MAIL)
+        DBMS_OUTPUT.PUT_LINE('Email Notification Sent: Invalid quantity detected');
+    END IF;
+END;
+/
