@@ -1,0 +1,7 @@
+UPDATE employee
+SET salary =
+CASE
+    WHEN salary < 20000 THEN salary + 2000
+    ELSE salary + 1000
+END
+WHERE address_city = 'Chennai';
