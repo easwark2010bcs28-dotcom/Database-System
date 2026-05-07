@@ -1,0 +1,10 @@
+INSERT INTO employee (employee_id, employee_name, salary, address_city)
+SELECT 530,
+       'Kiran',
+       CASE
+           WHEN salary >= 25000 THEN 26000
+           ELSE 21000
+       END,
+       'Chennai'
+FROM employee
+WHERE employee_id = 501;
