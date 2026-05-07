@@ -1,0 +1,23 @@
+CREATE OR REPLACE FUNCTION emp_less_than_arun_avg
+RETURN VARCHAR2
+IS
+    v_salary NUMBER;
+    v_result VARCHAR2(4000) := '';
+BEGIN
+    -- Get Arun's salary
+    SELECT salary INTO v_salary
+    FROM employee_role
+    WHERE LOWER(emp_name) = 'arun';
+
+    FOR rec IN (
+        SELECT emp_name, salary
+        FROM employee_role
+        WHERE salary < v_salary
+    )
+    LOOP
+        v_result := v_result || rec.emp_name || ' - ' || rec.salary || CHR(10);
+    END LOOP;
+
+    RETURN v_result;
+END;
+/
