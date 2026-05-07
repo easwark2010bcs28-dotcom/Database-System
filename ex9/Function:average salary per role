@@ -1,0 +1,17 @@
+CREATE OR REPLACE FUNCTION avg_salary_role
+RETURN VARCHAR2
+IS
+    v_result VARCHAR2(4000) := '';
+BEGIN
+    FOR rec IN (
+        SELECT role, AVG(salary) avg_sal
+        FROM employee_role
+        GROUP BY role
+    )
+    LOOP
+        v_result := v_result || rec.role || ' - ' || rec.avg_sal || CHR(10);
+    END LOOP;
+
+    RETURN v_result;
+END;
+/
