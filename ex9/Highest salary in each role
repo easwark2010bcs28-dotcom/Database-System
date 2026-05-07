@@ -1,0 +1,25 @@
+CREATE OR REPLACE PROCEDURE highest_salary_role
+IS
+    v_max NUMBER;
+BEGIN
+    FOR r IN (SELECT DISTINCT role FROM employee_role)
+    LOOP
+        SELECT MAX(salary) INTO v_max
+        FROM employee_role
+        WHERE role = r.role;
+
+        FOR e IN (
+            SELECT emp_name, salary
+            FROM employee_role
+            WHERE role = r.role
+        )
+        LOOP
+            IF e.salary = v_max THEN
+                DBMS_OUTPUT.PUT_LINE(
+                    r.role || ' ' || e.emp_name || ' ' || e.salary
+                );
+            END IF;
+        END LOOP;
+    END LOOP;
+END;
+/
