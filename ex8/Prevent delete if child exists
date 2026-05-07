@@ -1,0 +1,15 @@
+CREATE OR REPLACE TRIGGER prevent_customer_delete
+BEFORE DELETE ON customer
+FOR EACH ROW
+DECLARE
+    v_count NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO v_count
+    FROM orders
+    WHERE customer_id = :OLD.customer_id;
+
+    IF v_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20004,'Cannot delete customer');
+    END IF;
+END;
+/
