@@ -1,0 +1,8 @@
+CREATE VIEW siv_emp AS
+SELECT *
+FROM (
+    SELECT *
+    FROM employee
+    WHERE address_city = 'sivakasi'
+)
+WHERE ROWNUM <= 5;
