@@ -1,0 +1,62 @@
+SET SERVEROUTPUT ON;
+DECLARE
+    n NUMBER := &input;
+    is_prime BOOLEAN := TRUE;
+    temp NUMBER;
+    sum_val NUMBER := 0;
+    rem NUMBER;
+    len NUMBER;
+BEGIN
+    DBMS_OUTPUT.PUT_LINE('Results for Number: ' || n);
+
+    -- Positive / Negative / Zero
+    IF n > 0 THEN
+        DBMS_OUTPUT.PUT_LINE(n || ' is Positive');
+    ELSIF n < 0 THEN
+        DBMS_OUTPUT.PUT_LINE(n || ' is Negative');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE(n || ' is Zero');
+    END IF;
+
+    -- Even / Odd
+    IF MOD(ABS(n), 2) = 0 THEN
+        DBMS_OUTPUT.PUT_LINE(n || ' is Even');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE(n || ' is Odd');
+    END IF;
+
+    -- Prime Check
+    IF n <= 1 THEN
+        is_prime := FALSE;
+    ELSE
+        FOR i IN 2..TRUNC(SQRT(n)) LOOP
+            IF MOD(n, i) = 0 THEN
+                is_prime := FALSE;
+                EXIT;
+            END IF;
+        END LOOP;
+    END IF;
+
+    IF is_prime THEN
+        DBMS_OUTPUT.PUT_LINE(n || ' is Prime');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE(n || ' is Not Prime');
+    END IF;
+
+    -- Armstrong Number Check
+    temp := ABS(n);
+    len := LENGTH(TO_CHAR(temp));
+
+    WHILE temp > 0 LOOP
+        rem := MOD(temp, 10);
+        sum_val := sum_val + POWER(rem, len);
+        temp := TRUNC(temp / 10);
+    END LOOP;
+
+    IF sum_val = ABS(n) AND n >= 0 THEN
+        DBMS_OUTPUT.PUT_LINE(n || ' is an Armstrong number');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE(n || ' is Not an Armstrong number');
+    END IF;
+END;
+/
