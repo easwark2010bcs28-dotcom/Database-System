@@ -1,0 +1,15 @@
+SET SERVEROUTPUT ON;
+DECLARE
+    CURSOR dis_cursor IS
+        SELECT * FROM employee
+        WHERE employee_name LIKE 'A%';
+BEGIN
+    FOR rec IN dis_cursor LOOP
+        DBMS_OUTPUT.PUT_LINE(
+            'Employee Name: ' || rec.employee_name ||
+            ' Salary: ' || rec.salary ||
+            ' Address: ' || rec.address_street
+        );
+    END LOOP;
+END;
+/
