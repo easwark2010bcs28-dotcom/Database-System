@@ -1,0 +1,16 @@
+CREATE OR REPLACE PROCEDURE max_emp_role
+IS
+    v_role VARCHAR2(20);
+BEGIN
+    SELECT role INTO v_role
+    FROM (
+        SELECT role, COUNT(*) cnt
+        FROM employee_role
+        GROUP BY role
+        ORDER BY cnt DESC
+    )
+    WHERE ROWNUM = 1;
+
+    DBMS_OUTPUT.PUT_LINE('Max employees role: ' || v_role);
+END;
+/
