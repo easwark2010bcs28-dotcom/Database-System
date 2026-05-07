@@ -1,0 +1,13 @@
+CREATE OR REPLACE FUNCTION display_roles
+RETURN VARCHAR2
+IS
+    v_result VARCHAR2(4000) := 'Roles: ';
+BEGIN
+    FOR rec IN (SELECT DISTINCT role FROM employee_role)
+    LOOP
+        v_result := v_result || rec.role || ', ';
+    END LOOP;
+
+    RETURN RTRIM(v_result, ', ');
+END;
+/
