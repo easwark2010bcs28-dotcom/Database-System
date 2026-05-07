@@ -1,0 +1,15 @@
+CREATE OR REPLACE TRIGGER check_stock_before_order
+BEFORE INSERT ON orders
+FOR EACH ROW
+DECLARE
+    v_available NUMBER;
+BEGIN
+    SELECT available_quantity INTO v_available
+    FROM food_stock
+    WHERE food_id = :NEW.food_id;
+
+    IF :NEW.total_quantity > v_available THEN
+        RAISE_APPLICATION_ERROR(-20008,'Not enough stock available');
+    END IF;
+END;
+/
